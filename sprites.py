@@ -58,9 +58,9 @@ class Player(pygame.sprite.Sprite):
         self.collide_enemies()
 
         self.rect.x += self.x_change
-        self.collide_blocks('x')
+        self.collide_obstacles('x')
         self.rect.y += self.y_change
-        self.collide_blocks('y')
+        self.collide_obstacles('y')
 
         self.x_change = 0
         self.y_change = 0
@@ -94,10 +94,12 @@ class Player(pygame.sprite.Sprite):
             self.kill()
             self.game.playing = False
 
-    def collide_blocks(self, direction):
-        if direction == "x":
-            hits = pygame.sprite.spritecollide(self, self.game.blocks, False)
-            if hits:
+    def collide_obstacles(self, direction):
+        hits_blocks = pygame.sprite.spritecollide(self, self.game.blocks, False)
+        hits_holes = pygame.sprite.spritecollide(self, self.game.holes, False)
+        if hits_blocks or hits_holes:
+            hits = hits_blocks or hits_holes
+            if direction == "x":
                 if self.x_change > 0:
                     self.rect.x = hits[0].rect.left - self.rect.width
                     for sprite in self.game.all_sprites:
@@ -106,9 +108,7 @@ class Player(pygame.sprite.Sprite):
                     self.rect.x = hits[0].rect.right
                     for sprite in self.game.all_sprites:
                         sprite.rect.x -= PLAYER_SPEED
-        if direction == "y":
-            hits = pygame.sprite.spritecollide(self, self.game.blocks, False)
-            if hits:
+            if direction == "y":
                 if self.y_change > 0:
                     self.rect.y = hits[0].rect.top - self.rect.height
                     for sprite in self.game.all_sprites:
@@ -160,13 +160,10 @@ class Enemy(pygame.sprite.Sprite):
         self.groups = self.game.all_sprites, self.game.enemies
         pygame.sprite.Sprite.__init__(self, self.groups)
 
-        self.x = x * TILESIZE
-        self.y = y * TILESIZE
-        self.width = TILESIZE
-        self.height = TILESIZE
+        self.x, self.y = y*TILESIZE, y*TILESIZE
+        self.width, self.height = TILESIZE, TILESIZE
 
-        self.x_change = 0
-        self.y_change = 0
+        self.x_change, self.y_change = 0, 0
 
         self.facing = random.choice(["left", "right"])
         self.animation_loop = 1
@@ -176,26 +173,24 @@ class Enemy(pygame.sprite.Sprite):
         self.image = self.game.enemy_sprite_sheet.get_sprite(3, 2, self.width, self.height)
         self.image.set_colorkey(BLACK)
 
-        self.rect = self.image.get_rect()
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.rect = self.image.get_rect(x=self.x, y=self.y)
 
         self.left_animations = [self.game.enemy_sprite_sheet.get_sprite(3, 98, self.width, self.height),
-                           self.game.enemy_sprite_sheet.get_sprite(35, 98, self.width, self.height),
-                           self.game.enemy_sprite_sheet.get_sprite(68, 98, self.width, self.height)]
+                                self.game.enemy_sprite_sheet.get_sprite(35, 98, self.width, self.height),
+                                self.game.enemy_sprite_sheet.get_sprite(68, 98, self.width, self.height)]
         self.right_animations = [self.game.enemy_sprite_sheet.get_sprite(3, 66, self.width, self.height),
-                           self.game.enemy_sprite_sheet.get_sprite(35, 66, self.width, self.height),
-                           self.game.enemy_sprite_sheet.get_sprite(68, 66, self.width, self.height)]
+                                 self.game.enemy_sprite_sheet.get_sprite(35, 66, self.width, self.height),
+                                 self.game.enemy_sprite_sheet.get_sprite(68, 66, self.width, self.height)]
 
     def update(self):
         self.movement()
         self.animate()
+        self.collide_obstacles()
 
         self.rect.x += self.x_change
         self.rect.y += self.y_change
 
-        self.x_change = 0
-        self.y_change = 0
+        self.x_change, self.y_change = 0, 0
 
     def movement(self):
         if self.facing == "left":
@@ -227,6 +222,18 @@ class Enemy(pygame.sprite.Sprite):
                 if self.animation_loop >= 3:
                     self.animation_loop = 1
 
+    def collide_obstacles(self):
+        hits_blocks = pygame.sprite.spritecollide(self, self.game.blocks, False)
+        hits_holes = pygame.sprite.spritecollide(self, self.game.holes, False)
+        if hits_blocks or hits_holes:
+            hits = hits_blocks or hits_holes
+            if self.facing == "left":
+                self.rect.x = hits[0].rect.left - self.rect.width
+                self.facing = "right"
+            if self.facing == "right":
+                self.rect.x = hits[0].rect.right
+                self.facing = "left"
+
 
 class Block(pygame.sprite.Sprite):
     def __init__(self, game, x, y):
@@ -235,16 +242,25 @@ class Block(pygame.sprite.Sprite):
         self.groups = self.game.all_sprites, self.game.blocks
         pygame.sprite.Sprite.__init__(self, self.groups)
 
-        self.x = x * TILESIZE
-        self.y = y * TILESIZE
-        self.width = TILESIZE
-        self.height = TILESIZE
+        self.x, self.y = x*TILESIZE, y*TILESIZE
+        self.width, self.height = TILESIZE, TILESIZE
 
-        self.image = self.game.terrain_sprite_sheet.get_sprite(960, 448, self.width, self.height)
-        
-        self.rect = self.image.get_rect()
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.image = self.game.terrain_sprite_sheet.get_sprite(30*32, 14*32, self.width, self.height)
+        self.rect = self.image.get_rect(x=self.x, y=self.y)
+
+
+class Hole(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        self.game = game
+        self._layer = BLOCK_LAYER
+        self.groups = self.game.all_sprites, self.game.holes
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x, self.y = x*TILESIZE, y*TILESIZE
+        self.width, self.height = TILESIZE, TILESIZE
+
+        self.image = self.game.terrain_sprite_sheet.get_sprite(32*18, 32*0, self.width, self.height)
+        self.rect = self.image.get_rect(x=self.x, y=self.y)
 
 
 class Ground(pygame.sprite.Sprite):
@@ -254,15 +270,11 @@ class Ground(pygame.sprite.Sprite):
         self.groups = self.game.all_sprites
         pygame.sprite.Sprite.__init__(self, self.groups)
 
-        self.x = x * TILESIZE
-        self.y = y * TILESIZE
-        self.width = TILESIZE
-        self.height = TILESIZE
+        self.x, self.y= x*TILESIZE, y*TILESIZE
+        self.width, self.height = TILESIZE, TILESIZE
 
-        self.image = self.game.terrain_sprite_sheet.get_sprite(64, 352, self.width, self.height)
-        self.rect = self.image.get_rect()
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.image = self.game.terrain_sprite_sheet.get_sprite(32*2, 32*11, self.width, self.height)
+        self.rect = self.image.get_rect(x=self.x, y=self.y)
 
 
 class Button:
@@ -296,36 +308,31 @@ class Attack(pygame.sprite.Sprite):
         self.groups = self.game.all_sprites, self.game.attacks
         pygame.sprite.Sprite.__init__(self, self.groups)
 
-        self.x = x
-        self.y = y
-        self.width = TILESIZE
-        self.height = TILESIZE
+        self.x, self.y = x, y
+        self.width, self.height = TILESIZE, TILESIZE
         
         self.animation_loop = 1
 
         self.image = self.game.attack_sprite_sheet.get_sprite(0, 32, self.width, self.height)
+        self.rect = self.image.get_rect(x=self.x, y=self.y)
 
-        self.rect = self.image.get_rect()
-        self.rect.x = self.x
-        self.rect.y = self.y
+        self.down_animations = [self.game.attack_sprite_sheet.get_sprite(  0, 32, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 32, 32, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 64, 32, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 96, 32, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite(128, 32, self.width, self.height)]
 
-        self.down_animations =  [self.game.attack_sprite_sheet.get_sprite(  0, 32, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 32, 32, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 64, 32, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 96, 32, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite(128, 32, self.width, self.height)]
+        self.up_animations = [self.game.attack_sprite_sheet.get_sprite(  0,  0, self.width, self.height),
+                              self.game.attack_sprite_sheet.get_sprite( 32,  0, self.width, self.height),
+                              self.game.attack_sprite_sheet.get_sprite( 64,  0, self.width, self.height),
+                              self.game.attack_sprite_sheet.get_sprite( 96,  0, self.width, self.height),
+                              self.game.attack_sprite_sheet.get_sprite(128,  0, self.width, self.height)]
 
-        self.up_animations =    [self.game.attack_sprite_sheet.get_sprite(  0,  0, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 32,  0, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 64,  0, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 96,  0, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite(128,  0, self.width, self.height)]
-
-        self.left_animations =  [self.game.attack_sprite_sheet.get_sprite(  0, 96, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 32, 96, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 64, 96, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite( 96, 96, self.width, self.height),
-                                 self.game.attack_sprite_sheet.get_sprite(128, 96, self.width, self.height)]
+        self.left_animations = [self.game.attack_sprite_sheet.get_sprite(  0, 96, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 32, 96, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 64, 96, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite( 96, 96, self.width, self.height),
+                                self.game.attack_sprite_sheet.get_sprite(128, 96, self.width, self.height)]
 
         self.right_animations = [self.game.attack_sprite_sheet.get_sprite(  0, 64, self.width, self.height),
                                  self.game.attack_sprite_sheet.get_sprite( 32, 64, self.width, self.height),

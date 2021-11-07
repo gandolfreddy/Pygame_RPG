@@ -21,10 +21,14 @@ class Game:
 
     def create_tilemap(self):
         for i, row in enumerate(tilemap):
+            i -= 10
             for j, column in enumerate(row):
+                j -= 25
                 Ground(self, j, i)
                 if column == "B":
                     Block(self, j, i)
+                if column == "H":
+                    Hole(self, j, i)
                 if column == "E":
                     Enemy(self, j, i)
                 if column == "P":
@@ -36,8 +40,9 @@ class Game:
 
         # ?
         self.all_sprites = pygame.sprite.LayeredUpdates()
-        self.blocks = pygame.sprite.LayeredUpdates()
         self.enemies = pygame.sprite.LayeredUpdates()
+        self.blocks = pygame.sprite.LayeredUpdates()
+        self.holes = pygame.sprite.LayeredUpdates()
         self.attacks = pygame.sprite.LayeredUpdates()
 
         self.create_tilemap()
